@@ -1,0 +1,16 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\backend",
+    "\\backend\\config",
+    "\\backend\\controllers",
+    "\\backend\\middleware",
+    "\\backend\\models",
+    "\\backend\\routes",
+    "\\public",
+    "\\src",
+    "\\src\\components"
+  ],
+  "SelectedNode": "\\backend\\routes\\todoRoutes.js",
+  "PreviewInSolutionExplorer": false
+}
