@@ -4,13 +4,13 @@
     "\\backend",
     "\\backend\\config",
     "\\backend\\controllers",
-    "\\backend\\middleware",
     "\\backend\\models",
     "\\backend\\routes",
-    "\\public",
     "\\src",
-    "\\src\\components"
+    "\\src\\assets",
+    "\\src\\recoil",
+    "\\src\\utils"
   ],
-  "SelectedNode": "\\backend\\routes\\todoRoutes.js",
+  "SelectedNode": "\\src\\components\\ToDoList.tsx",
   "PreviewInSolutionExplorer": false
 }

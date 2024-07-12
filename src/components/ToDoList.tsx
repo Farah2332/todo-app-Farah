@@ -1,154 +1,126 @@
 import React, { useState, useEffect } from 'react';
-import axiosInstance from './axiosInstance'; // Assuming axiosInstance is properly configured
-import {
-    Box,
-    Button,
-    Input,
-    Checkbox,
-    Stack,
-    Text,
-    IconButton,
-    useColorMode,
-    useColorModeValue,
-} from "@chakra-ui/react";
-import { DeleteIcon } from "@chakra-ui/icons";
-import { FiEye, FiUser } from "react-icons/fi";
+import { useRecoilState, useRecoilValue, useRecoilCallback } from 'recoil';
+import { todoListState, filteredTodoListState } from '../recoil/atoms';
+import { fetchTodosSelector, addTodoSelector, toggleTodoSelector, deleteTodoSelector, todosLoadingSelector } from '../recoil/selectors';
+import { Box, Button, Checkbox, IconButton, Input, Stack, Text, useColorModeValue } from '@chakra-ui/react';
+import { DeleteIcon } from '@chakra-ui/icons';
+import { FiUser, FiEye, FiEyeOff } from 'react-icons/fi';
+import { toast } from 'react-toastify'; // Import toast from react-toastify
 
 function ToDoList() {
-    const [tasks, setTasks] = useState([]);
+    const [todos, setTodos] = useRecoilState(todoListState);
+    const filteredTodos = useRecoilValue(filteredTodoListState);
+    const [isLoading, setIsLoading] = useRecoilState(todosLoadingSelector);
     const [task, setTask] = useState('');
     const [hideCompleted, setHideCompleted] = useState(false);
-    const { colorMode } = useColorMode();
-    const userEmail = localStorage.getItem('email'); // Retrieve user's email from localStorage
 
-    useEffect(() => {
-        fetchTodos(); // Fetch todos on component mount
+    // Function to add toast notification
+    const showToast = (message: string) => {
+        toast.success(message, {
+            position: "bottom-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+        });
+    };
+
+    // Fetch todos callback
+    const fetchTodos = useRecoilCallback(({ snapshot, set }) => async () => {
+        setIsLoading(true);
+        try {
+            const userEmail = localStorage.getItem('email');
+            if (!userEmail) throw new Error('User email not found');
+            const fetchedTodos = await snapshot.getPromise(fetchTodosSelector);
+            console.log('Fetched Todos:', fetchedTodos); // Log fetched todos
+            set(todoListState, fetchedTodos); // Update todoListState
+        } catch (error) {
+            console.error('Error fetching todos:', error);
+            showToast('Failed to fetch todos'); // Example of using toast for error
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
-    // Function to fetch todos from the server
-    const fetchTodos = async () => {
+    // Add todo callback
+    const addTodo = useRecoilCallback(({ snapshot }) => async (newTodo: { text: string; email: string }) => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.error('No token found in localStorage');
-                return;
-            }
+            const addedTodo = await snapshot.getPromise(addTodoSelector(newTodo));
+            showToast('Task added successfully'); // Example of using toast for success
+            return addedTodo;
+        } catch (error) {
+            console.error('Error adding todo:', error);
+            showToast('Failed to add task'); // Example of using toast for error
+            throw error;
+        }
+    }, []);
 
-            const res = await axiosInstance.get('http://localhost:5000/api/todos', {
-                params: { email: userEmail }, // Pass user's email as a query parameter
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+    // Toggle todo callback
+    const toggleTodo = useRecoilCallback(({ snapshot }) => async (id: string) => {
+        try {
+            const updatedTodo = await snapshot.getPromise(toggleTodoSelector(id));
+            showToast('Task updated'); // Example of using toast for success
+            return updatedTodo;
+        } catch (error) {
+            console.error('Error toggling todo status:', error);
+            showToast('Failed to update task'); // Example of using toast for error
+            throw error;
+        }
+    }, []);
 
-            setTasks(res.data); // Update tasks state with fetched data
-        } catch (err) {
-            console.error('Failed to fetch todos:', err);
-            if (err.response) {
-                console.error('Response data:', err.response.data);
-            }
+    // Delete todo callback
+    const deleteTodo = useRecoilCallback(({ snapshot }) => async (id: string) => {
+        try {
+            console.log('Deleting todo with id:', id); // Log deleting todo
+            await snapshot.getPromise(deleteTodoSelector(id));
+            setTodos((prevTodos) => prevTodos.filter(todo => todo._id !== id));
+            showToast('Task deleted'); // Example of using toast for success
+        } catch (error) {
+            console.error('Error deleting todo:', error);
+            showToast('Failed to delete task'); // Example of using toast for error
+            throw error;
+        }
+    });
+
+    useEffect(() => {
+        fetchTodos();
+    }, [fetchTodos]);
+
+    const handleAddTask = async () => {
+        try {
+            const userEmail = localStorage.getItem('email');
+            if (!userEmail) throw new Error('User email not found');
+            const newTodo = await addTodo({ text: task, email: userEmail });
+            setTodos((prevTodos) => [...prevTodos, newTodo]);
+            setTask('');
+        } catch (error) {
+            console.error('Error adding todo:', error);
+            showToast('Failed to add task'); // Example of using toast for error
         }
     };
 
-    // Function to add a new task
-    const addTask = async () => {
+    const handleToggleTaskCompletion = async (id: string) => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.error('No token found in localStorage');
-                return;
-            }
-
-            // Send POST request to add new task
-            const res = await axiosInstance.post('http://localhost:5000/api/todos',
-                { text: task, email: userEmail }, // Include user's email in the request body
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
+            const updatedTodo = await toggleTodo(id);
+            setTodos((prevTodos) =>
+                prevTodos.map(todo => todo._id === id ? updatedTodo : todo)
             );
-
-            // Update local tasks state with newly added task
-            setTasks([...tasks, res.data]);
-            setTask(''); // Clear input field after successful addition
-        } catch (err) {
-            console.error('Failed to add task:', err);
+        } catch (error) {
+            console.error('Error toggling todo status:', error);
+            showToast('Failed to update task'); // Example of using toast for error
         }
     };
 
-    // Function to toggle task completion status
-    const toggleTaskCompletion = async (id) => {
+    const handleDeleteTask = async (id: string) => {
         try {
-            // Find the task to update in the local state
-            const todoToUpdate = tasks.find(task => task._id === id);
-            if (!todoToUpdate) {
-                console.error(`Todo with id ${id} not found.`);
-                return;
-            }
-
-            // Toggle the completion status locally
-            const updatedTodo = { ...todoToUpdate, completed: !todoToUpdate.completed };
-
-            // Send PUT request to update task on the server
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.error('No token found in localStorage');
-                return;
-            }
-
-            const res = await axiosInstance.put(`http://localhost:5000/api/todos/${id}`, updatedTodo, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            // Update local tasks state with updated task
-            const updatedTasks = tasks.map(task =>
-                task._id === id ? res.data : task
-            );
-            setTasks(updatedTasks);
-        } catch (err) {
-            console.error('Failed to update task:', err);
+            await deleteTodo(id);
+        } catch (error) {
+            console.error('Error deleting todo:', error);
+            showToast('Failed to delete task'); // Example of using toast for error
         }
     };
-
-    const deleteTask = async (id) => {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.error('No token found in localStorage');
-                return;
-            }
-
-            const userEmail = localStorage.getItem('email'); // Retrieve user's email from localStorage
-
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                data: { email: userEmail } // Pass user's email in the request body
-            };
-
-            // Send DELETE request to delete task
-            await axiosInstance.delete(`http://localhost:5000/api/todos/${id}`, config);
-
-            // Update local tasks state after successful deletion
-            const updatedTasks = tasks.filter(task => task._id !== id);
-            setTasks(updatedTasks);
-        } catch (err) {
-            console.error('Failed to delete task:', err);
-            if (err.response && err.response.status === 401) {
-                console.error('Unauthorized access. Please check your credentials.');
-            }
-        }
-    };
-
-
-
-
-
-
 
     return (
         <Box
@@ -171,54 +143,32 @@ function ToDoList() {
                 width="100%"
                 position="relative"
             >
-                <IconButton
-                    aria-label="Toggle Hide Completed"
-                    icon={hideCompleted ? <FiEye /> : <FiEye />}
-                    onClick={() => setHideCompleted(!hideCompleted)}
-                    position="absolute"
-                    top="1rem"
-                    right="4rem"
-                    colorScheme="teal"
-                    variant="outline"
-                />
-                <Box
-                    as="button"
-                    aria-label="Profile"
-                    onClick={() => { } /* You can add functionality here if needed */}
-                    position="absolute"
-                    top="1rem"
-                    right="1rem"
-                    bg="teal.500"
-                    borderRadius="full"
-                    width="36px"
-                    height="36px"
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    cursor="pointer"
-                >
-                    <FiUser color="white" />
-                </Box>
-                <Text fontSize="2xl" mb={4}>To Do App</Text>
-                <Stack spacing={3}>
-                    {tasks.filter(task => !hideCompleted || !task.completed).map((task, index) => (
-                        <Box key={task._id} display="flex" alignItems="center">
-                            <Checkbox
-                                isChecked={task.completed}
-                                onChange={() => toggleTaskCompletion(task._id)}
-                                mr={3}
-                            />
-                            <Text as={task.completed ? 's' : undefined}>{task.text}</Text>
-                            <IconButton
-                                aria-label="Delete task"
-                                icon={<DeleteIcon />}
-                                size="sm"
-                                onClick={() => deleteTask(task._id)}
-                                ml="auto"
-                            />
-                        </Box>
-                    ))}
+                <Stack spacing={4}>
+                    {todos.length > 0 ? (
+                        todos.map((todo) => (
+                            <Box key={todo._id} display="flex" alignItems="center">
+                                <Checkbox
+                                    isChecked={todo.completed}
+                                    onChange={() => handleToggleTaskCompletion(todo._id)}
+                                    mr={3}
+                                />
+                                <Text as={todo.completed ? 's' : undefined} flex="1">
+                                    {todo.text}
+                                </Text>
+                                <IconButton
+                                    aria-label="Delete task"
+                                    icon={<DeleteIcon />}
+                                    size="sm"
+                                    onClick={() => handleDeleteTask(todo._id)}
+                                    ml="auto"
+                                />
+                            </Box>
+                        ))
+                    ) : (
+                            <Text>No todos available</Text>
+                        )}
                 </Stack>
+
                 <Box mt={4}>
                     <Input
                         placeholder="New Note"
@@ -227,7 +177,9 @@ function ToDoList() {
                         mb={3}
                         bg={useColorModeValue('white', 'gray.600')}
                     />
-                    <Button colorScheme="teal" width="100%" onClick={addTask}>Add Note</Button>
+                    <Button colorScheme="teal" width="100%" onClick={handleAddTask}>
+                        Add Note
+                    </Button>
                 </Box>
             </Box>
         </Box>

@@ -5,22 +5,33 @@ import darkBackgroundImage from "../assets/bg-desktop-dark.jpg";
 import lightBackgroundImage from "../assets/bg-desktop-light.jpg";
 import { useNavigate } from 'react-router-dom';
 
-function SignIn({ toggleForm }) {
+interface SignInProps {
+    toggleForm: () => void; // Define the type for toggleForm prop
+    onSignIn: () => void; // Define the type for onSignIn prop
+}
+
+const SignIn: React.FC<SignInProps> = ({ toggleForm, onSignIn }) => {
     const { colorMode } = useColorMode();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    const [email, setEmail] = useState<string>(''); // Specify type for useState
+    const [password, setPassword] = useState<string>(''); // Specify type for useState
+    const [error, setError] = useState<string>(''); // Specify type for useState
     const navigate = useNavigate();
 
     const handleSignIn = async () => {
         try {
-            const res = await axios.post('http://localhost:5000/api/users/login', { email, password });
-            const token = res.data.token;
+            const response = await axios.post<{ token: string }>('http://localhost:5000/api/users/login', { email, password });
+
+            const token = response.data.token;
             localStorage.setItem('token', token);
-            localStorage.setItem('email', email); // Store user's email in localStorage
-            navigate('/todo-list'); // Redirect to todos page upon successful login
+            localStorage.setItem('email', email);
+            onSignIn(); // Trigger the onSignIn function passed from App.tsx
+            navigate('/todo-list');
         } catch (err) {
-            setError(err.response.data.message);
+            if (err.response) {
+                setError(err.response.data.message);
+            } else {
+                setError('Failed to connect to the server');
+            }
         }
     };
 
@@ -62,8 +73,10 @@ function SignIn({ toggleForm }) {
                     <Text color="red.500" textAlign="center" mb={3}>{error}</Text>
                 )}
                 <Text textAlign="center">
-                    Don't have an account yet?{" "}
-                    <Button variant="link" colorScheme="teal" onClick={toggleForm}>Signup</Button>
+                    Don't have an account yet?{' '}
+                    <Button variant="link" colorScheme="teal" onClick={toggleForm}>
+                        Signup
+                    </Button>
                 </Text>
             </Box>
         </Box>
